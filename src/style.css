@@ -1,0 +1,51 @@
+:root {
+  --bg: #121212;
+  --panel: #1a1a1a;
+  --line: #2a2a2a;
+  --fg: #ddd;
+  --dim: #808080;
+  --accent: #ffc66d;
+  --led-off: #222;
+  --background: var(--bg); /* StrudelMirror reads this */
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.45 ui-monospace, Menlo, monospace; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+h1 { margin: 0; font-size: 14px; color: var(--accent); font-weight: 600; }
+h1 span { color: var(--dim); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button { font: inherit; color: var(--fg); background: #262626; border: 1px solid #3a3a3a; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: #555; }
+button.on { border-color: var(--accent); color: var(--accent); }
+button.ghost { background: transparent; color: var(--dim); }
+#status { color: var(--dim); min-width: 5em; }
+label { color: var(--dim); }
+#nudge { width: 56px; font: inherit; background: var(--panel); color: var(--fg); border: 1px solid var(--line); padding: 2px 4px; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 16px; min-height: calc(100% - 50px); }
+.left { min-width: 0; }
+#editor { min-height: 70vh; border: 1px solid var(--line); border-radius: 4px; overflow: auto; }
+.right { width: min(100%, 460px); display: flex; flex-direction: column; gap: 8px; }
+
+#tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tab.active { border-color: var(--accent); color: var(--accent); }
+
+.vgrid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; user-select: none; touch-action: none; }
+.vgrid .cell {
+  aspect-ratio: 1; border-radius: 4px; cursor: pointer;
+  background: color-mix(in srgb, var(--accent) calc(var(--lv, 0) * 100%), var(--led-off));
+}
+#navhint { margin: 0; color: var(--accent); }
+.hint { margin: 0; color: var(--dim); }
+
+#legend section { margin-bottom: 8px; }
+#legend h3 { margin: 4px 0; font-size: 12px; color: var(--accent); }
+#legend .wd { color: var(--fg); }
+#legend .fn { color: var(--dim); padding-left: 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#log { color: var(--dim); max-height: 160px; overflow: auto; border-top: 1px solid var(--line); padding-top: 6px; }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+  .right { width: 100%; }
+}

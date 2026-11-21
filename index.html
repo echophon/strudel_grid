@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>strudel grid</title>
+  </head>
+  <body>
+    <header>
+      <h1>strudel <span>×</span> grid</h1>
+      <div class="controls">
+        <button id="connect">Connect grid</button>
+        <button id="play" title="Ctrl+Enter">▶ Run</button>
+        <button id="stop" title="Ctrl+.">■ Stop</button>
+        <span id="status">stopped</span>
+        <label>nudge <input id="nudge" type="number" step="5" value="0" /> ms</label>
+        <button id="reset" class="ghost" title="Forget saved code and grid state">reset</button>
+      </div>
+    </header>
+    <main>
+      <section class="left">
+        <div id="editor"></div>
+      </section>
+      <aside class="right">
+        <nav id="tabs"></nav>
+        <div id="vgrid"></div>
+        <p id="navhint" hidden>page menu open: tap a page on the bottom row</p>
+        <p class="hint">pages: press both bottom corners together</p>
+        <div id="legend"></div>
+        <div id="log"></div>
+      </aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
