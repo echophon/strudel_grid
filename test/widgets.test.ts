@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { readTags } from '../src/widgets/tag';
 import { notes } from '../src/widgets/notes';
 import { toggles } from '../src/widgets/toggles';
+import { stepAt } from '../src/widgets/steps';
 import { makeEnv, onsets } from './helpers';
 
 const cellOf = (h: any) => readTags(h).map((t) => `${t.x},${t.y}`).join('+');
@@ -56,5 +57,53 @@ describe('notes (pitch matrix)', () => {
     m.onKey(0, 2, true); // degree 2 added to col 0
     const vals = onsets(m.pattern).map((h: any) => h.value).sort();
     expect(vals).toEqual([0, 2]);
+  });
+});
+
+describe('sequence lengths', () => {
+  const times = (pat: any, b: number, e: number) => onsets(pat, b, e).map((h: any) => Number(h.whole.begin.valueOf().toFixed(4)));
+
+  it('width defaults to the init string length', () => {
+    const env = makeEnv();
+    expect(toggles(env, { x: 6, init: 'x..x.' }, 'a').w).toBe(5);
+    expect(notes(env, { init: '0.2' }, 'b').w).toBe(3);
+    expect(toggles(env, { x: 6 }, 'c').w).toBe(10); // no init: rest of the row
+  });
+
+  it('without step: every width fits one cycle (6 against 5 polyrhythm)', () => {
+    const env = makeEnv();
+    const six = toggles(env, { init: 'x.....' }, 'six').pattern;
+    const five = toggles(env, { x: 6, init: 'x....' }, 'five').pattern;
+    expect(times(six, 0, 2)).toEqual([0, 1]);
+    expect(times(five, 0, 2)).toEqual([0, 1]);
+  });
+
+  it('with step: equal step lengths, lengths 6 and 5 drift (polymeter)', () => {
+    const env = makeEnv();
+    const six = toggles(env, { init: 'x.....', step: 1 / 8 }, 'six').pattern;
+    const five = toggles(env, { x: 6, init: 'x....', step: 1 / 8 }, 'five').pattern;
+    expect(times(six, 0, 2)).toEqual([0, 0.75, 1.5]); // every 6 steps
+    expect(times(five, 0, 2)).toEqual([0, 0.625, 1.25, 1.875]); // every 5 steps
+    // they realign after lcm(6,5) = 30 steps = 3.75 cycles
+    expect(times(six, 3.7, 3.8)).toEqual([3.75]);
+    expect(times(five, 3.7, 3.8)).toEqual([3.75]);
+  });
+
+  it('tags still point at the right cell when stretched', () => {
+    const env = makeEnv();
+    const t = toggles(env, { x: 6, y: 0, init: '..x..', step: 1 / 4 }, 't').pattern;
+    expect(onsets(t, 0, 1.25).map(cellOf)).toEqual(['8,0']);
+  });
+
+  it('notes take step too', () => {
+    const env = makeEnv();
+    const m = notes(env, { init: '0..', step: 1 / 4 }, 'm').pattern;
+    expect(times(m, 0, 2)).toEqual([0, 0.75, 1.5]);
+  });
+
+  it('playhead follows the step length and rejects bad steps', () => {
+    expect([0, 0.125, 0.75, 0.875].map((c) => stepAt(c, 6, 1 / 8))).toEqual([0, 1, 0, 1]);
+    expect(stepAt(0.5, 4, undefined)).toBe(2);
+    expect(() => toggles(makeEnv(), { step: 0 }, 'bad')).toThrow(/positive/);
   });
 });

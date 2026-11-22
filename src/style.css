@@ -19,6 +19,9 @@ button { font: inherit; color: var(--fg); background: #262626; border: 1px solid
 button:hover { border-color: #555; }
 button.on { border-color: var(--accent); color: var(--accent); }
 button.ghost { background: transparent; color: var(--dim); }
+.file { display: inline-flex; gap: 4px; }
+#examples { font: inherit; color: var(--fg); background: #262626; border: 1px solid #3a3a3a; border-radius: 4px; padding: 3px 6px; }
+#editor.drop { border-color: var(--accent); }
 #status { color: var(--dim); min-width: 5em; }
 label { color: var(--dim); }
 #nudge { width: 56px; font: inherit; background: var(--panel); color: var(--fg); border: 1px solid var(--line); padding: 2px 4px; }
@@ -28,7 +31,9 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; pad
 #editor { min-height: 70vh; border: 1px solid var(--line); border-radius: 4px; overflow: auto; }
 .right { width: min(100%, 460px); display: flex; flex-direction: column; gap: 8px; }
 
-#tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+nav.tabs { display: flex; align-items: center; gap: 8px; }
+nav.tabs .lbl { color: var(--dim); width: 4.5em; }
+nav.tabs > span:last-child { display: flex; flex-wrap: wrap; gap: 4px; }
 .tab.active { border-color: var(--accent); color: var(--accent); }
 
 .vgrid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; user-select: none; touch-action: none; }
@@ -36,13 +41,13 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; pad
   aspect-ratio: 1; border-radius: 4px; cursor: pointer;
   background: color-mix(in srgb, var(--accent) calc(var(--lv, 0) * 100%), var(--led-off));
 }
-#navhint { margin: 0; color: var(--accent); }
 .hint { margin: 0; color: var(--dim); }
 
+#legend { text-align: right; }
 #legend section { margin-bottom: 8px; }
 #legend h3 { margin: 4px 0; font-size: 12px; color: var(--accent); }
 #legend .wd { color: var(--fg); }
-#legend .fn { color: var(--dim); padding-left: 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#legend .fn { color: var(--dim); padding-right: 1.5em; overflow-wrap: anywhere; }
 #log { color: var(--dim); max-height: 160px; overflow: auto; border-top: 1px solid var(--line); padding-top: 6px; }
 
 @media (max-width: 900px) {

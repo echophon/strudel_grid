@@ -57,6 +57,7 @@ export function createEditor(h: EditorHooks) {
       ]);
       aliasBank('RolandTR909', 'tr909');
       aliasBank('RolandTR808', 'tr808');
+      aliasBank('RolandTR707', 'tr707');
       h.onSamplesLoaded();
     },
     beforeEval: () => h.beforeEval(),
@@ -82,6 +83,7 @@ export function createEditor(h: EditorHooks) {
     evaluate: () => editor.evaluate(),
     stop: () => editor.stop(),
     get code(): string { return editor.code; },
+    setCode: (code: string) => editor.setCode(code),
     /** scheduler position in cycles (0 when stopped) */
     cycle(): number {
       const s = editor.repl.scheduler;

@@ -1,7 +1,8 @@
-import { s } from '@strudel/core';
+import { rev, s } from '@strudel/core';
 import { describe, expect, it } from 'vitest';
 import { createCell, gate, pendingAt, scheduleChange, switches, valueAt } from '../src/widgets/switches';
 import { readTags } from '../src/widgets/tag';
+import { play } from '../src/widgets/play';
 import { makeEnv, onsets } from './helpers';
 
 const show = (haps: any[]) => haps.map((h) => `${h.whole.begin.valueOf()}:${h.value.s}`);
@@ -64,5 +65,66 @@ describe('switches widget', () => {
     widget.onKey(0, 0, false);
     performance.now = realNow;
     expect(env.store.sw.latched['0,0']).toBe(false);
+  });
+});
+
+describe('play toggle', () => {
+  const pl = () => {
+    const env = makeEnv({}, () => cycle);
+    let cycle = 0;
+    const p = play(env, { id: 'go', x: 15, y: 3 }, 'd');
+    return { env, p, setCycle: (c: number) => { cycle = c; } };
+  };
+
+  it('plays by default, stops on the next cycle after a tap, and restarts', () => {
+    const { p, setCycle } = pl();
+    const pat = p.fn(s('bd sd'));
+    setCycle(0.3);
+    p.widget.onKey(0, 0, true); p.widget.onKey(0, 0, false); // stop, lands at 1
+    setCycle(2.2);
+    p.widget.onKey(0, 0, true); p.widget.onKey(0, 0, false); // start, lands at 3
+    expect(show(onsets(pat, 0, 4))).toEqual(['0:bd', '0.5:sd', '3:bd', '3.5:sd']);
+  });
+
+  it('tags what it plays with its own cell (so the button flashes), keeping inner tags', () => {
+    const { p } = pl();
+    const inner = gate(createCell(), (x) => x, { id: 'k', x: 0, y: 0 })(s('bd'));
+    const tags = readTags(onsets(p.fn(inner))[0]).map((t) => t.id);
+    expect(tags).toContain('go');
+  });
+
+  it('persists its state; init: false starts silent', () => {
+    const env = makeEnv();
+    const p = play(env, { init: false }, 'quiet');
+    expect(onsets(p.fn(s('bd')))).toHaveLength(0);
+    expect(env.store.quiet).toEqual({ on: false });
+  });
+});
+
+describe('switches under the scheduler', () => {
+  // The scheduler asks for small slices; a transform must sound the same however time is sliced.
+  const sliced = (pat: any, b: number, e: number, n: number) => {
+    const out: any[] = [];
+    for (let i = 0; i < n; i++) out.push(...onsets(pat, b + ((e - b) * i) / n, b + ((e - b) * (i + 1)) / n));
+    return show(out).sort();
+  };
+  const fns = [(x: any) => x.fast(2), (x: any) => x.ply(2), (x: any) => x.room(0.5), rev, (x: any) => x.iter(4)];
+
+  for (let col = 0; col < fns.length; col++) {
+    it(`column ${col} (after the others in a row) sounds the same in slices as in whole cycles`, () => {
+      const env = makeEnv();
+      const sw = switches(env, { fns }, `sched${col}`);
+      sw.widget.onKey(col, 0, true); sw.widget.onKey(col, 0, false); // on from cycle 0
+      const pat = sw.api.row(0)(s('bd ~ ~ sd ~ ~ hh ~'));
+      expect(sliced(pat, 0, 2, 37)).toEqual(show(onsets(pat, 0, 2)).sort());
+      expect(onsets(pat, 0, 2).length).toBeGreaterThan(0);
+    });
+  }
+
+  it('a change point still cuts cleanly: no note from the old side leaks past it', () => {
+    const c = createCell();
+    scheduleChange(c, true, 0.4, 1); // rev on at 1
+    const pat = gate(c, rev, { id: 'r', x: 0, y: 0 })(s('bd sd'));
+    expect(sliced(pat, 0, 2, 13)).toEqual(['0.5:sd', '0:bd', '1.5:bd', '1:sd']);
   });
 });

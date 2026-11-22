@@ -5,63 +5,39 @@
 //   all(fx.all)         // globally
 // Tap = latch; hold > HOLD_MS = momentary. Changes land on the next multiple of q cycles
 // (q: 0 = immediate); armed switches blink until then.
-import { Pattern as StrudelPattern, TimeSpan, Fraction } from '@strudel/core';
+import { fnLabel } from './label';
 import { tag } from './tag';
+import { createTimeline, scheduleChange, switchBy, timelineFor, valueAt, pendingAt, type Timeline } from './timeline';
 import type { Env, GridTag, Pattern, Widget } from './types';
+
+export { scheduleChange, valueAt, pendingAt, timelineFor };
+export { allTimelines, resetTimeline } from './timeline';
 
 export const HOLD_MS = 300;
 
-// --- timeline: switch value as a function of cycle time (lookahead-safe) -------------
-export interface Cell {
-  latched: boolean;
-  history: [number, boolean][];
-  downAt: number;
-}
-export const createCell = (latched = false): Cell => ({ latched, history: [[-Infinity, latched]], downAt: 0 });
+/** a boolean timeline (one switch) */
+export type Cell = Timeline<boolean>;
+export const createCell = (latched = false): Cell => createTimeline(latched);
 
-export function valueAt(cell: Cell, c: number): boolean {
-  let v = false;
-  for (const [t, val] of cell.history) {
-    if (t <= c) v = val;
-    else break;
-  }
-  return v;
-}
-export function scheduleChange(cell: Cell, value: boolean, nowCycle: number, q: number): number {
-  const at = q > 0 ? Math.ceil(nowCycle / q - 1e-9) * q : nowCycle;
-  cell.history = cell.history.filter(([t]) => t < at); // supersede pending changes
-  cell.history.push([at, value]);
-  if (cell.history.length > 32) cell.history = cell.history.slice(-32);
-  return at;
-}
-export const pendingAt = (cell: Cell, nowCycle: number) => cell.history.some(([t]) => t > nowCycle);
-/** after a stop, cycle time restarts at 0: collapse to the latched value */
-export const resetTimeline = (cell: Cell) => { cell.history = [[-Infinity, cell.latched]]; };
-
-// --- the gate -----------------------------------------------------------------------
 /**
- * Split each query at the switch's change points; per sub-span take haps from fn(pat) when on,
- * else pat, keeping only haps whose ONSET lies in the sub-span → no chopped notes, no doubles.
+ * Per sub-span: fn(pat) (tagged with the switch's cell) when on, else offFn(pat) (default pat).
+ * Only the "on" side carries the tag, so the switch flashes while it's shaping notes.
  */
-export function gate(cell: Cell, fn: (p: Pattern) => Pattern, t: GridTag) {
+export function gate(cell: Cell, fn: (p: Pattern) => Pattern, t: GridTag, offFn: (p: Pattern) => Pattern = (p) => p) {
   return (pat: Pattern): Pattern => {
-    const transformed = tag(fn(pat), t);
-    return new StrudelPattern((state: any) => {
-      const b = state.span.begin.valueOf();
-      const e = state.span.end.valueOf();
-      const cuts = [b, ...cell.history.map(([c]) => c).filter((c) => c > b && c < e), e];
-      const out: any[] = [];
-      for (let i = 0; i < cuts.length - 1; i++) {
-        const [sb, se] = [cuts[i], cuts[i + 1]];
-        const src = valueAt(cell, sb) ? transformed : pat;
-        for (const h of src.query(state.setSpan(new TimeSpan(Fraction(sb), Fraction(se))))) {
-          if (!h.whole) { out.push(h); continue; }
-          const on = h.whole.begin.valueOf();
-          if (on >= sb && on < se) out.push(h);
-        }
-      }
-      return out;
-    });
+    const on = tag(fn(pat), t);
+    const off = offFn(pat);
+    return switchBy(cell, (v) => (v ? on : off));
+  };
+}
+
+/** tap = latch; hold > HOLD_MS = momentary (release undoes it) */
+export function holdable(tl: { downAt: number }, flip: () => void) {
+  return (down: boolean) => {
+    if (down) {
+      tl.downAt = performance.now();
+      flip();
+    } else if (performance.now() - tl.downAt > HOLD_MS) flip();
   };
 }
 
@@ -80,9 +56,6 @@ export interface SwitchesApi {
   all: (p: Pattern) => Pattern;
 }
 
-/** runtime timelines (not persisted; rebuilt from the persisted `latched` flags) */
-const timelines = new Map<string, Cell>();
-export const allTimelines = () => timelines.values();
 
 export function switches(env: Env, opts: SwitchesOpts, defaultId: string): { widget: Widget; api: SwitchesApi } {
   const { x = 0, y = 0, h = 1, fns, q = 1 } = opts;
@@ -90,33 +63,33 @@ export function switches(env: Env, opts: SwitchesOpts, defaultId: string): { wid
   const id = opts.id ?? defaultId;
   const st: { latched: Record<string, boolean> } = (env.store[id] ??= { latched: {} });
   const cell = (cx: number, cy: number): Cell => {
-    const k = `${id}|${cx},${cy}`;
-    let c = timelines.get(k);
-    if (!c) timelines.set(k, (c = createCell(!!st.latched[`${cx},${cy}`])));
-    return c;
+    return timelineFor(`${id}|${cx},${cy}`, !!st.latched[`${cx},${cy}`]);
   };
   const flip = (cx: number, cy: number) => {
-    const c = cell(cx, cy);
-    c.latched = !c.latched;
-    st.latched[`${cx},${cy}`] = c.latched;
-    scheduleChange(c, c.latched, env.nowCycle(), q);
-    env.changed();
+    set(cx, cy, !cell(cx, cy).latched);
   };
 
+  const set = (cx: number, cy: number, v: boolean) => {
+    st.latched[`${cx},${cy}`] = v;
+    scheduleChange(cell(cx, cy), v, env.nowCycle(), q);
+    env.changed();
+  };
   const at = (cx: number, cy = 0) => gate(cell(cx, cy), fns[cx], { id, x: x + cx, y: y + cy });
   const row = (cy = 0) => (pat: Pattern) => fns.reduce((p, _, cx) => at(cx, cy)(p), pat);
 
   const widget: Widget = {
     id, kind: 'switches', page: '', x, y, w: fns.length, h,
-    labels: fns.map((f) => String(f).replace(/\s+/g, ' ')),
+    labels: fns.map(fnLabel),
     onKey(cx, cy, down) {
-      const c = cell(cx, cy);
-      if (down) {
-        c.downAt = performance.now();
-        flip(cx, cy); // tap = latch
-      } else if (performance.now() - c.downAt > HOLD_MS) {
-        flip(cx, cy); // long hold = momentary: release undoes it
-      }
+      holdable(cell(cx, cy), () => flip(cx, cy))(down);
+    },
+    snapshot: () => ({ ...st.latched }),
+    restore(s: Record<string, boolean>) {
+      for (let cy = 0; cy < h; cy++)
+        for (let cx = 0; cx < fns.length; cx++) {
+          const v = !!s?.[`${cx},${cy}`];
+          if (cell(cx, cy).latched !== v) set(cx, cy, v);
+        }
     },
     draw(put, { now, cycle }) {
       for (let cy = 0; cy < h; cy++)

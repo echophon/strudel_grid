@@ -1,6 +1,6 @@
 // localStorage autosave for editor code, widget state and the current page.
 // Every access is guarded: storage can be unavailable (private mode, blocked site data).
-const KEY = 'strudel-grid:v1';
+const KEY = 'strudel-grid:v3'; // v3: nothing reserved; navigation is the grid.pages() primitive
 
 export interface Saved {
   code?: string;
