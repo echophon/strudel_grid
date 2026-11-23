@@ -1,4 +1,4 @@
-// 08 · clip launcher — grid.clips() is a strip of keys, each holding a whole pattern.
+// 09 · clip launcher — grid.clips() is a strip of keys, each holding a whole pattern.
 // Tap a clip = it starts on the next cycle (blinks until then); tap the playing one = stop.
 // Vertical strips make launcher columns, one per instrument.
 // pattern.grid({...}) shows ANY pattern on the grid — display only, here the whole mix.

@@ -1,6 +1,6 @@
 import { n, note, s, sequence as seq } from '@strudel/core';
 import '@strudel/tonal';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureToCode, literal } from '../src/capture';
 import { createGridApi, installPatternMethods } from '../src/gridApi';
 import { Surface } from '../src/surface';
@@ -12,9 +12,11 @@ import { snapshots } from '../src/widgets/snapshots';
 import { switches } from '../src/widgets/switches';
 import { readTags } from '../src/widgets/tag';
 import { clearTimelines, timelineFor, valueAt } from '../src/widgets/timeline';
-import { toggles } from '../src/widgets/toggles';
+import { bitsToString, toggles } from '../src/widgets/toggles';
+import { LOOP_HOLD_MS } from '../src/widgets/steps';
 import { transport } from '../src/widgets/transport';
 import { view } from '../src/widgets/view';
+import { xy } from '../src/widgets/xy';
 import { makeEnv, onsets } from './helpers';
 
 let cycle = 0;
@@ -110,18 +112,93 @@ describe('fader', () => {
   });
 });
 
+describe('xy pad', () => {
+  it('one tap sets both values: column → x (left low), row → y (bottom low)', () => {
+    const e = env();
+    const p = xy(e, { id: 'p', x: 4, y: 1, w: 5, h: 3, xRange: [0, 100], yRange: [100, 10000], yExp: true }, 'd');
+    expect([p.w, p.h]).toEqual([5, 3]);
+    tap(p, 1, 0); // column 1 of 5, top row
+    expect(e.store.p.value[0]).toBe(25);
+    expect(e.store.p.value[1]).toBeCloseTo(10000);
+    tap(p, 4, 1); // middle row, exponential → geometric middle
+    expect(e.store.p.value).toEqual([100, expect.closeTo(1000)]);
+  });
+
+  it('gives two value patterns that glide together', () => {
+    const e = env();
+    const p = xy(e, { id: 'g', w: 3, h: 3, glide: 2 }, 'd');
+    cycle = 1;
+    tap(p, 2, 0); // (0,0) → (1,1) over cycles 1..3
+    const haps = onsets(s('saw*2').lpf(p.px).room(p.py), 2, 3);
+    expect(haps.map((h: any) => [h.value.cutoff, h.value.room])).toEqual([[0.5, 0.5], [0.75, 0.75]]);
+  });
+
+  it('draws a crosshair with the point bright', () => {
+    const e = env();
+    const p = xy(e, { id: 'c', x: 0, y: 0, w: 3, h: 3, init: [0.5, 0] }, 'd');
+    const lv = frame(p);
+    expect(lv['1,2']).toBe(12); // middle column, bottom row
+    expect([lv['0,2'], lv['2,2'], lv['1,0'], lv['1,1']]).toEqual([2, 2, 2, 2]);
+    expect(lv['0,0']).toBe(0);
+  });
+
+  it('snapshots, restores, and captures init only when moved', () => {
+    const e = env();
+    const p = xy(e, { id: 's', w: 3, h: 3 }, 'd');
+    expect(p.capture!()).toEqual({});
+    tap(p, 2, 2);
+    const snap = p.snapshot!();
+    tap(p, 0, 0);
+    p.restore!(snap);
+    expect(e.store.s.value).toEqual([1, 0]);
+    expect(p.capture!()).toEqual({ init: [1, 0] });
+  });
+});
+
 describe('loop gesture', () => {
+  // the gesture reads performance.now(); drive it by hand
+  let clock = 0;
+  beforeEach(() => { clock = 1000; vi.spyOn(performance, 'now').mockImplementation(() => clock); });
+  afterEach(() => vi.restoreAllMocks());
+  const hold = (ms = LOOP_HOLD_MS) => { clock += ms; };
+
   it('hold a step + tap another → loop that range, first edit undone; same again clears', () => {
     const e = env();
     const t = toggles(e, { id: 'k', init: 'x.......' }, 'd');
     t.onKey(2, 0, true); // would toggle step 2 on...
-    t.onKey(5, 0, true); // ...but this makes it a loop gesture
+    hold();
+    t.onKey(5, 0, true); // ...but after holding it, this makes it a loop gesture
     t.onKey(5, 0, false);
     t.onKey(2, 0, false);
     expect(e.store.k.bits.filter(Boolean)).toHaveLength(1);
     expect(e.store.k.loop).toEqual([2, 5]);
-    t.onKey(5, 0, true); t.onKey(2, 0, true); t.onKey(2, 0, false); t.onKey(5, 0, false);
+    t.onKey(5, 0, true); hold(); t.onKey(2, 0, true); t.onKey(2, 0, false); t.onKey(5, 0, false);
     expect(e.store.k.loop).toBeNull();
+  });
+
+  it('fast overlapping presses (editing) are just edits, never a loop', () => {
+    const e = env();
+    const t = toggles(e, { id: 'k', init: '........' }, 'd');
+    t.onKey(1, 0, true); hold(80);
+    t.onKey(2, 0, true); hold(80); // rolled onto the next key before releasing the first
+    t.onKey(1, 0, false); hold(50);
+    t.onKey(2, 0, false);
+    t.onKey(3, 0, true); hold(LOOP_HOLD_MS - 1);
+    t.onKey(4, 0, true); // 3 held, but not quite long enough
+    for (const c of [3, 4]) t.onKey(c, 0, false);
+    expect(e.store.k.loop).toBeNull();
+    expect(bitsToString(e.store.k.bits)).toBe('.xxxx...');
+  });
+
+  it('a column held long enough lights up: tap another to loop', () => {
+    const e = env();
+    const t = toggles(e, { id: 'k', init: '........' }, 'd');
+    t.onKey(3, 0, true);
+    expect(frame(t, { now: clock })['3,0']).toBe(5); // just toggled on
+    hold();
+    expect(frame(t, { now: clock })['3,0']).toBe(12); // armed
+    t.onKey(3, 0, false);
+    expect(frame(t, { now: clock })['3,0']).toBe(5);
   });
 
   it('a loop keeps the step length and plays only its steps', () => {
@@ -136,11 +213,11 @@ describe('loop gesture', () => {
   it('notes: same-column keys still build chords; across columns sets the loop', () => {
     const e = env();
     const m = notes(e, { id: 'm', w: 4, h: 4, poly: true }, 'd');
-    m.onKey(1, 3, true); m.onKey(1, 1, true); m.onKey(1, 1, false); m.onKey(1, 3, false);
+    m.onKey(1, 3, true); hold(); m.onKey(1, 1, true); m.onKey(1, 1, false); m.onKey(1, 3, false);
     expect(e.store.m.cols[1].sort()).toEqual([0, 2]);
-    m.onKey(0, 0, true); m.onKey(3, 0, true); m.onKey(3, 0, false); m.onKey(0, 0, false);
+    m.onKey(0, 0, true); hold(); m.onKey(3, 0, true); m.onKey(3, 0, false); m.onKey(0, 0, false);
     expect(e.store.m.loop).toBeNull(); // the full range 0..3 is the same as no loop
-    m.onKey(1, 0, true); m.onKey(2, 0, true); m.onKey(2, 0, false); m.onKey(1, 0, false);
+    m.onKey(1, 0, true); hold(); m.onKey(2, 0, true); m.onKey(2, 0, false); m.onKey(1, 0, false);
     expect(e.store.m.loop).toEqual([1, 2]);
     expect(e.store.m.cols[1].sort()).toEqual([0, 2]); // the anchor column's edit was undone
   });
@@ -257,7 +334,11 @@ describe('capture-to-code', () => {
     grid.toggles({ y: 0 });
     surface.commit();
     const t = surface.widgets[0];
-    t.onKey(0, 0, true); t.onKey(1, 0, true); t.onKey(1, 0, false); t.onKey(0, 0, false); // same range → clear
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    t.onKey(0, 0, true);
+    now.mockReturnValue(LOOP_HOLD_MS); // held long enough
+    t.onKey(1, 0, true); t.onKey(1, 0, false); t.onKey(0, 0, false); // same range → clear
+    now.mockRestore();
     const r = captureToCode(code, surface.widgets);
     expect(r.code.split('\n')[0]).toBe(`const t = grid.toggles({ id: 't', init: 'x.x.' })`);
     expect(r.skipped).toEqual(['grid.toggles at line 2']);

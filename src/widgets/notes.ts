@@ -77,8 +77,9 @@ export function notes(env: Env, opts: NotesOpts, defaultId: string): Widget & { 
       });
       env.changed();
     },
-    draw(put, { started, cycle }) {
+    draw(put, { started, cycle, now }) {
       const ps = loopPlayhead(started, cycle, w, step, st.loop ?? null);
+      const armed = gesture.armed(now); // held long enough: tap another column to loop
       const [a, b] = st.loop ?? [0, w - 1];
       for (let i = 0; i < w; i++) {
         const inLoop = i >= a && i <= b;
@@ -86,6 +87,7 @@ export function notes(env: Env, opts: NotesOpts, defaultId: string): Widget & { 
           const deg = h - 1 - r;
           let lv = st.cols[i].includes(deg) ? (inLoop ? 6 : 2) : deg === 0 && inLoop ? 1 : 0; // dim root row = orientation
           if (i === ps) lv = Math.max(lv, 2);
+          if (i === armed) lv = Math.max(lv, 4); // light the whole anchor column
           put(x + i, y + r, lv);
         }
       }

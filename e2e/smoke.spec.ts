@@ -50,11 +50,11 @@ test('examples menu: loads a project with a vertical sidebar, fresh state, and r
   await page.goto('/');
   await expect(page.locator('.cm-editor')).toBeVisible();
 
-  await page.selectOption('#examples', { label: '10 sidebar' });
+  await page.selectOption('#examples', { label: '11 sidebar' });
   await expect(page.locator('#status')).toHaveText('playing', { timeout: 45_000 });
-  await expect(page.locator('.cm-content')).toContainText('10 · sidebar');
+  await expect(page.locator('.cm-content')).toContainText('11 · sidebar');
   await expect(page.locator('#pages .tab')).toHaveText(['beat', 'lead', 'bass']);
-  await expect(page.locator('#log')).toContainText('loaded 10-sidebar.js');
+  await expect(page.locator('#log')).toContainText('loaded 11-sidebar.js');
 
   // page buttons run down x 15: first page bright, the others dim
   await expect.poll(() => level(page, 15, 0)).toBe(12);
@@ -72,4 +72,30 @@ test('examples menu: loads a project with a vertical sidebar, fresh state, and r
   await page.selectOption('#examples', { label: '01 first steps' });
   await expect(page.locator('.cm-content')).toContainText('01 · first steps');
   expect(errors).toEqual([]);
+});
+
+test('hydra examples: visuals start behind the page, follow the grid, and go away with the code', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error' && /hydra|webgl/i.test(m.text())) errors.push(m.text()); });
+  page.on('dialog', (d) => d.accept());
+  await page.goto('/');
+  await expect(page.locator('.cm-editor')).toBeVisible();
+
+  for (const label of ['13 hydra', '14 hydra beat', '15 hydra scenes']) {
+    await page.selectOption('#examples', { label });
+    await expect(page.locator('#status')).toHaveText('playing', { timeout: 45_000 });
+    await expect(page.locator('#hydra-canvas')).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.locator('html')).toHaveAttribute('data-hydra', 'on');
+  }
+  // the grid still receives taps (the canvas is behind it, not over it)
+  await page.locator('#pages .tab', { hasText: 'visuals' }).click();
+  await tapCell(page, 0, 2); // scene 2
+  await expect.poll(() => level(page, 0, 2), { timeout: 5_000 }).toBeGreaterThanOrEqual(9);
+  await page.waitForTimeout(500); // let hydra draw a few frames with the new values
+  expect(errors).toEqual([]);
+
+  await page.selectOption('#examples', { label: '01 first steps' });
+  await expect(page.locator('#hydra-canvas')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-hydra');
 });

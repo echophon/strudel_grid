@@ -9,6 +9,8 @@ import { Surface } from './surface';
 import { stepAt } from './widgets/steps';
 import { allTimelines, clearTimelines, resetTimeline } from './widgets/timeline';
 import { EXAMPLES } from './examples';
+import { clearHydra, initHydra } from './hydra';
+import { makeH } from './hydraValue';
 import { captureToCode } from './capture';
 import type { DrawCtx, Env } from './widgets/types';
 
@@ -45,8 +47,11 @@ installPatternMethods(grid);
 editor = createEditor({
   root: $('editor'),
   initialCode: saved.code ?? DEFAULT_CODE,
-  scope: { grid },
-  beforeEval: () => surface.begin(),
+  scope: { grid, initHydra, clearHydra, H: makeH(() => editor?.cycle() ?? 0) },
+  beforeEval: () => {
+    if (!editor?.code.includes('initHydra')) clearHydra(); // visuals go away with the code that made them
+    surface.begin();
+  },
   afterEval: () => { surface.commit(); renderLegend(); persist(); },
   onEvalError: (e) => {
     surface.abort();
@@ -216,7 +221,7 @@ function renderLegend() {
         w.labels?.forEach((l, i) => {
           const d = document.createElement('div');
           d.className = 'fn';
-          d.textContent = w.kind === 'view' ? l : `${w.h > w.w ? `row ${w.y + i}` : `col ${w.x + i}`}: ${l}`;
+          d.textContent = w.kind === 'view' || w.kind === 'xy' ? l : `${w.h > w.w ? `row ${w.y + i}` : `col ${w.x + i}`}: ${l}`;
           sec.append(d);
         });
       }

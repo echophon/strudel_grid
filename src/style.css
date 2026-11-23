@@ -54,3 +54,13 @@ nav.tabs > span:last-child { display: flex; flex-wrap: wrap; gap: 4px; }
   main { grid-template-columns: 1fr; }
   .right { width: 100%; }
 }
+
+/* hydra: the canvas lives behind the page; panels go translucent so the visuals show through */
+#hydra-canvas { z-index: -1; }
+html[data-hydra] { background: #000; --background: rgba(10, 10, 10, 0.45); }
+html[data-hydra] body { background: transparent; }
+html[data-hydra] header { background: rgba(10, 10, 10, 0.7); }
+html[data-hydra] .right { background: rgba(10, 10, 10, 0.72); border-radius: 6px; padding: 8px; }
+html[data-hydra] .cm-line > * { background: rgba(0, 0, 0, 0.55); } /* readable code over bright visuals */
+html[data-hydra] .cm-editor, html[data-hydra] .cm-gutters, html[data-hydra] .cm-scroller { background: rgba(10, 10, 10, 0.3) !important; } /* themes paint solid colours */
+html[data-hydra] #editor { border-color: transparent; background: transparent !important; }

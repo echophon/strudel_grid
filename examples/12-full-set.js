@@ -1,7 +1,7 @@
-// 11 · full set — everything together: four pages, a shared bottom row, fx, clips and a
+// 12 · full set — everything together: four pages, a shared bottom row, fx, clips and a
 // live view. Every key and LED on the grid is declared here; nothing is built in.
 // Ctrl+Enter = run · Ctrl+. = stop · Ctrl+Shift+Enter = capture grid state into this code
-// Primitives: toggles · notes · switches · play · radio · clips · fader · snapshots · transport
+// Primitives: toggles · notes · switches · play · radio · clips · fader · xy · snapshots · transport
 //             · pages · pattern.grid() — pick what the piece needs and place it anywhere.
 setcps(0.5)
 

@@ -1,4 +1,4 @@
-// 09 · pages — more controls than keys? Put them on pages.
+// 10 · pages — more controls than keys? Put them on pages.
 // grid.page('name') puts the following controls on that page; grid.page(null) = every page.
 // grid.pages() is the page switcher: one key per page (bright = here, mid = recently
 // changed, dim = elsewhere). The on-screen tabs above the grid do the same.

@@ -1,4 +1,4 @@
-// 07 · mixer — controls can stand upright. `vertical: true` turns a fader into a column
+// 08 · mixer — controls can stand upright. `vertical: true` turns a fader into a column
 // (bottom = quiet, top = loud) and a radio/clips/snapshots strip into a stack of keys.
 // Here: a 12-step drum machine on the left (x 0–11), mute keys in column 11 below it,
 // and a 4-channel volume mixer on the right (x 12–15, 8 keys tall).

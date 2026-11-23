@@ -65,23 +65,35 @@ export function loopPlayhead(started: boolean, cycle: number, w: number, step: n
   return a + stepAt(cycle, n, step ?? 1 / w);
 }
 
+/** how long column A must be held before tapping B makes a loop (quicker overlaps are just edits) */
+export const LOOP_HOLD_MS = 300;
+
 /**
- * Hold column A, tap column B → loop A..B (again with the same range → clear). The edit A's
- * key-down already made is undone, and B isn't edited. Keys in the same column edit normally
- * (e.g. building a chord in a poly pitch matrix).
+ * Hold column A (at least LOOP_HOLD_MS), tap column B → loop A..B (again with the same range →
+ * clear). The edit A's key-down already made is undone, and B isn't edited. Overlapping keys
+ * from fast editing (A not held long enough yet) are ordinary edits. Keys in the same column
+ * edit normally (e.g. building a chord in a poly pitch matrix). armed() names the column that
+ * is ready to anchor a loop, so the widget can light it.
  */
 export function loopGesture<S>(o: {
   snap(col: number): S;
   undo(col: number, s: S): void;
   getLoop(): Loop;
   setLoop(l: Loop): void;
+  now?: () => number;
+  holdMs?: number;
 }) {
-  const held = new Map<number, { snap: S; undone: boolean; keys: number }>();
+  const now = o.now ?? (() => performance.now());
+  const holdMs = o.holdMs ?? LOOP_HOLD_MS;
+  const held = new Map<number, { snap: S; undone: boolean; keys: number; downAt: number }>();
+  const anchor = (t: number, except?: number) =>
+    [...held.entries()].find(([c, h]) => c !== except && t - h.downAt >= holdMs);
   return {
     down(col: number, edit: () => void) {
-      const anchor = [...held.entries()].find(([c]) => c !== col);
-      if (anchor) {
-        const [ac, h] = anchor;
+      const t = now();
+      const a = anchor(t, col);
+      if (a) {
+        const [ac, h] = a;
         if (!h.undone) { o.undo(ac, h.snap); h.undone = true; }
         const next: Loop = [Math.min(ac, col), Math.max(ac, col)];
         const cur = o.getLoop();
@@ -90,12 +102,16 @@ export function loopGesture<S>(o: {
       }
       const h = held.get(col);
       if (h) h.keys++;
-      else held.set(col, { snap: o.snap(col), undone: false, keys: 1 });
+      else held.set(col, { snap: o.snap(col), undone: false, keys: 1, downAt: t });
       edit();
     },
     up(col: number) {
       const h = held.get(col);
       if (h && --h.keys <= 0) held.delete(col);
+    },
+    /** the column currently held long enough to anchor a loop, if any */
+    armed(t = now()): number | undefined {
+      return anchor(t)?.[0];
     },
   };
 }

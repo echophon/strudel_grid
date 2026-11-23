@@ -12,6 +12,7 @@
 //   const bass = grid.clips({ y: 6, patterns: [...] }) → clip launcher pattern: stack(..., bass)
 // values
 //   const cut  = grid.fader({ y: 6, range: [200, 4000], exp: true, glide: 1 }) → .lpf(cut)
+//   const pad  = grid.xy({ x: 8, w: 8, xRange: [200, 4000], xExp: true })   → .lpf(pad.x).room(pad.y)
 // performance / system
 //   grid.snapshots({ y: 7, w: 8 })                    → save/recall control states
 //   grid.transport({ x: 15, y: 7 })                   → start/stop + beat light
@@ -33,6 +34,7 @@ import { toggles, type TogglesOpts } from './widgets/toggles';
 import { transport, type Transport, type TransportOpts } from './widgets/transport';
 import type { Env, Page, Widget } from './widgets/types';
 import { view, type ViewOpts } from './widgets/view';
+import { xy, type XyOpts } from './widgets/xy';
 
 type Where = { page?: Page };
 
@@ -74,6 +76,11 @@ export function createGridApi(surface: Surface, env: Env, tp: Transport) {
     },
     fader(o: FaderOpts & Where = {}) {
       return add(fader(env, o, defaultId('fader', o)), o).pattern;
+    },
+    /** 2-D pad → { x, y }: two value patterns from one key press */
+    xy(o: XyOpts & Where = {}) {
+      const w = add(xy(env, o, defaultId('xy', o)), o);
+      return { x: w.px, y: w.py };
     },
     snapshots(o: SnapshotsOpts & Where = {}) {
       add(snapshots(env, () => surface.widgets, o, defaultId('snapshots', o)), o);

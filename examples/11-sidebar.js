@@ -1,4 +1,4 @@
-// 10 · sidebar — the same system controls, stood upright down the right edge.
+// 11 · sidebar — the same system controls, stood upright down the right edge.
 // pages, snapshots, transport, radio, clips and fader all take `vertical: true`;
 // for strips, `w` is then the number of keys downwards.
 //

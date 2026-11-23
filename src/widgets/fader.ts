@@ -45,33 +45,52 @@ export function segValueAt(tl: Timeline<Seg>, c: number): number {
   return seg.from + (seg.to - seg.from) * k;
 }
 
+/** n key positions mapped onto [lo, hi], linearly or exponentially */
+export function axis(id: string, n: number, range: [number, number], exp: boolean) {
+  const [lo, hi] = range.map(Number);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new Error(`${id}: range must be [low, high] numbers`);
+  if (exp && !(lo > 0 && hi > 0)) throw new Error(`${id}: exp needs a range above 0`);
+  return {
+    lo,
+    valueOf(pos: number) {
+      const k = pos / (n - 1);
+      return exp ? lo * Math.pow(hi / lo, k) : lo + (hi - lo) * k;
+    },
+    posOf(v: number) {
+      const k = exp ? Math.log(v / lo) / Math.log(hi / lo) : (v - lo) / (hi - lo || 1);
+      return Math.min(n - 1, Math.max(0, Math.round(k * (n - 1))));
+    },
+  };
+}
+
+/** a value that slides to each new target over `glide` cycles (scheduler time) → signal pattern */
+export function glider(env: Env, key: string, value: number, glide: number) {
+  const tl = timelineFor<Seg>(key, { from: value, to: value, glide: 0 });
+  return {
+    tl,
+    at: (cycle: number) => segValueAt(tl, cycle),
+    set(v: number) {
+      const now = env.nowCycle();
+      scheduleChange(tl, { from: segValueAt(tl, now), to: v, glide }, now, 0);
+    },
+    pattern: signal((t: any) => segValueAt(tl, Number(t.valueOf()))) as Pattern,
+  };
+}
+
 export function fader(env: Env, opts: FaderOpts, defaultId: string): Widget & { pattern: Pattern } {
   const { x = 0, y = 0, vertical = false, range = [0, 1], exp = false, glide = 0 } = opts;
   const id = opts.id ?? defaultId;
   const n = Math.max(2, opts.w ?? (vertical ? 8 - y : 16 - x));
-  const [lo, hi] = range.map(Number);
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new Error(`${id}: range must be [low, high] numbers`);
-  if (exp && !(lo > 0 && hi > 0)) throw new Error(`${id}: exp needs a range above 0`);
-
-  const valueOf = (pos: number) => {
-    const k = pos / (n - 1);
-    return exp ? lo * Math.pow(hi / lo, k) : lo + (hi - lo) * k;
-  };
-  const posOf = (v: number) => {
-    const k = exp ? Math.log(v / lo) / Math.log(hi / lo) : (v - lo) / (hi - lo || 1);
-    return Math.min(n - 1, Math.max(0, Math.round(k * (n - 1))));
-  };
+  const { lo, valueOf, posOf } = axis(id, n, range, exp);
 
   const st: { value: number } = (env.store[id] ??= { value: opts.init ?? lo });
-  const tl = timelineFor<Seg>(`${id}|fader`, { from: st.value, to: st.value, glide: 0 });
+  const g = glider(env, `${id}|fader`, st.value, glide);
   const setValue = (v: number) => {
-    const now = env.nowCycle();
     st.value = v;
-    scheduleChange(tl, { from: segValueAt(tl, now), to: v, glide }, now, 0);
+    g.set(v);
     env.changed();
   };
-
-  const pattern = signal((t: any) => segValueAt(tl, Number(t.valueOf())));
+  const pattern = g.pattern;
   const cell = (i: number) => (vertical ? { x, y: y + (n - 1 - i) } : { x: x + i, y });
 
   return {
@@ -80,7 +99,7 @@ export function fader(env: Env, opts: FaderOpts, defaultId: string): Widget & { 
       if (down) setValue(valueOf(vertical ? n - 1 - cy : cx));
     },
     draw(put, { now, cycle }) {
-      const cur = posOf(segValueAt(tl, cycle));
+      const cur = posOf(g.at(cycle));
       const target = posOf(st.value);
       for (let i = 0; i < n; i++) {
         const c = cell(i);

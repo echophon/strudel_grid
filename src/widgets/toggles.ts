@@ -48,13 +48,15 @@ export function toggles(env: Env, opts: TogglesOpts, defaultId: string): Widget 
       gesture.down(cx, () => { st.bits[cx] = !st.bits[cx]; });
       env.changed();
     },
-    draw(put, { started, cycle }) {
+    draw(put, { started, cycle, now }) {
       const ps = loopPlayhead(started, cycle, w, step, st.loop ?? null);
+      const armed = gesture.armed(now); // held long enough: tap another step to loop
       const [a, b] = st.loop ?? [0, w - 1];
       for (let i = 0; i < w; i++) {
         const inLoop = i >= a && i <= b;
         let lv = st.bits[i] ? (inLoop ? 5 : 2) : st.loop && inLoop ? 1 : 0;
         if (i === ps) lv = Math.max(lv, 2);
+        if (i === armed) lv = 12;
         put(x + i, y, lv);
       }
     },
